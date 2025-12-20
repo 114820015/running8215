@@ -12,11 +12,39 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, collection, query, onSnapshot, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'christmas-dash-v1';
+        // --- 初始化邏輯 (包含離線模式偵測) ---
+        let db = null;
+        let auth = null;
+        let appId = 'christmas-dash-offline';
+        let isOfflineMode = false;
+
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'christmas-dash-v1';
+                
+                // 線上模式：初始化 Auth
+                initAuth();
+                
+                // 線上模式：監聽 Auth 狀態並抓取排行榜
+                onAuthStateChanged(auth, (user) => {
+                    window.currentUser = user;
+                    if (user) {
+                        fetchLeaderboard();
+                    }
+                });
+            } else {
+                throw new Error("GitHub/External Environment detected");
+            }
+        } catch (e) {
+            console.log("切換至離線模式 (使用 LocalStorage)", e);
+            isOfflineMode = true;
+            // 離線模式直接抓取排行榜
+            fetchLeaderboard();
+        }
 
         window.gameDB = db;
         window.gameAppId = appId;
@@ -33,59 +61,92 @@
             }
         }
 
-        onAuthStateChanged(auth, (user) => {
-            window.currentUser = user;
-            if (user) {
-                fetchLeaderboard();
+        // --- 排行榜功能 (支援線上與離線) ---
+
+        function fetchLeaderboard() {
+            if (isOfflineMode) {
+                // [離線模式] 從 LocalStorage 讀取
+                try {
+                    const localData = JSON.parse(localStorage.getItem('christmas_scores') || '[]');
+                    // 排序並取前 5 名
+                    localData.sort((a, b) => b.score - a.score);
+                    window.leaderboardData = localData.slice(0, 5);
+                    renderLeaderboardUI();
+                } catch (e) {
+                    console.error("Local storage error", e);
+                }
+            } else {
+                // [線上模式] 從 Firebase 讀取
+                if (!window.currentUser || !db) return;
+                const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                onSnapshot(lbRef, (snapshot) => {
+                    const scores = [];
+                    snapshot.forEach(doc => scores.push(doc.data()));
+                    scores.sort((a, b) => b.score - a.score);
+                    window.leaderboardData = scores.slice(0, 5);
+                    renderLeaderboardUI();
+                }, (error) => console.error("LB error", error));
             }
-        });
-
-        initAuth();
-
-        async function fetchLeaderboard() {
-            if (!window.currentUser) return;
-            const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
-            onSnapshot(lbRef, (snapshot) => {
-                const scores = [];
-                snapshot.forEach(doc => scores.push(doc.data()));
-                scores.sort((a, b) => b.score - a.score);
-                window.leaderboardData = scores.slice(0, 5);
-                renderLeaderboardUI();
-            }, (error) => console.error("LB error", error));
         }
 
         window.submitScore = async function(customName = null) {
             const nameInput = document.getElementById('player-name');
             let name = (customName || (nameInput ? nameInput.value : "")).trim();
-            if (!name) name = "瘋狂的鹿";
+            if (!name) name = "極速麋鹿";
             const score = window.currentFinalScore;
             
-            // 如果已經送出過，就不再執行
-            if (!window.currentUser || window.hasSubmitted) return;
-            
-            // 標記為已送出，避免重複調用
+            if (window.hasSubmitted) return;
             window.hasSubmitted = true; 
             
-            try {
-                const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
-                await addDoc(lbRef, {
-                    name: name,
-                    score: score,
-                    timestamp: Date.now(),
-                    uid: window.currentUser.uid
-                });
-                const area = document.getElementById('score-submit-area');
-                if (area) area.innerHTML = `<p class="text-green-400 font-bold text-lg animate-bounce">✅ 分數已記錄：${name}</p>`;
-                console.log("Score submitted successfully");
-            } catch (e) {
-                console.error("Submit failed", e);
-                window.hasSubmitted = false; // 失敗時允許重試
+            const area = document.getElementById('score-submit-area');
+
+            if (isOfflineMode) {
+                // [離線模式] 存入 LocalStorage
+                try {
+                    const localData = JSON.parse(localStorage.getItem('christmas_scores') || '[]');
+                    localData.push({
+                        name: name,
+                        score: score,
+                        timestamp: Date.now()
+                    });
+                    localStorage.setItem('christmas_scores', JSON.stringify(localData));
+                    
+                    if (area) area.innerHTML = `<p class="text-green-400 font-bold text-lg animate-bounce">✅ 本機分數已儲存：${name}</p>`;
+                    // 更新排行榜顯示
+                    fetchLeaderboard();
+                    // 模擬一點延遲讓使用者看到訊息
+                    await new Promise(r => setTimeout(r, 500));
+                } catch (e) {
+                    console.error("Local save failed", e);
+                }
+            } else {
+                // [線上模式] 存入 Firebase
+                if (!window.currentUser || !db) return;
+                try {
+                    const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                    await addDoc(lbRef, {
+                        name: name,
+                        score: score,
+                        timestamp: Date.now(),
+                        uid: window.currentUser.uid
+                    });
+                    if (area) area.innerHTML = `<p class="text-green-400 font-bold text-lg animate-bounce">✅ 線上分數已記錄：${name}</p>`;
+                } catch (e) {
+                    console.error("Submit failed", e);
+                    window.hasSubmitted = false;
+                }
             }
         };
 
         function renderLeaderboardUI() {
             const container = document.getElementById('leaderboard-list');
             if (!container) return;
+            
+            // 標題顯示目前模式
+            const title = isOfflineMode ? "🏆 本機排行榜 (Offline)" : "🏆 全球排行榜 (Online)";
+            const header = document.querySelector('#start-screen h3');
+            if(header) header.innerText = title;
+
             if (!window.leaderboardData || window.leaderboardData.length === 0) {
                 container.innerHTML = '<p class="text-gray-400 italic">暫無排行榜資料</p>';
                 return;
@@ -131,10 +192,10 @@
     <div id="start-screen">
         <h1 class="text-5xl font-black mb-4 text-red-500 text-center uppercase tracking-tighter">Merry Christmas</h1>
         <div class="max-w-md w-full text-center bg-white/10 p-6 rounded-3xl backdrop-blur-md">
-            <h2 class="text-xl font-bold mb-4">麋鹿送禮物</h2>
+            <h2 class="text-xl font-bold mb-4">聖誕麋鹿極速挑戰</h2>
             <ul class="text-left space-y-2 mb-6 text-base text-gray-100 border-b border-white/10 pb-4">
                 <li>🦌 <strong>操作</strong>：使用方向鍵或按鈕左右移動</li>
-                <li>🎁 <strong>禮物</strong>：普通禮物 10 分，黃金禮物 50 分</li>
+                <li>🎁 <strong>禮物</strong>：一般 10 分，黃金 50 分</li>
                 <li>❤️ <strong>生命</strong>：共有 10 點血量，吃愛心可恢復</li>
             </ul>
             <div class="mb-4">
@@ -157,9 +218,9 @@
             <h2 class="text-4xl font-extrabold text-red-500 mb-2">任務結束！</h2>
             <div class="text-6xl font-black text-white mb-6" id="final-score-display">0</div>
             <div id="score-submit-area" class="mb-8">
-                <p class="text-gray-300 text-sm mb-3">輸入暱稱登記排行 (或直接重新挑戰)</p>
+                <p class="text-gray-300 text-sm mb-3">輸入暱稱登記排行 (Enter 或直接重新挑戰)</p>
                 <div class="flex flex-col gap-3">
-                    <input type="text" id="player-name" placeholder="輸入您的暱稱" maxlength="12" 
+                    <input type="text" id="player-name" placeholder="預設：極速麋鹿" maxlength="12" 
                            class="w-full bg-white/10 border border-white/30 text-white p-3 rounded-xl outline-none text-center focus:bg-white/20 focus:border-red-500 transition-all"
                            onkeydown="if(event.key==='Enter') window.submitScore()">
                 </div>
@@ -640,12 +701,20 @@
             const btn = document.getElementById('restart-btn');
             if (btn) btn.innerText = "儲存分數中...";
             
-            // 先嘗試同步上傳分數
-            if (!window.hasSubmitted) {
-                await window.submitScore().catch(e => console.error(e));
+            // 使用 try-catch-finally 確保無論儲存成功失敗，一定會重整頁面
+            try {
+                if (!window.hasSubmitted) {
+                    await window.submitScore();
+                }
+            } catch (e) {
+                console.error("Save failed but forcing reload", e);
+            } finally {
+                // 等待一小段時間讓使用者看到（如果是離線模式）
+                if (isOfflineMode) {
+                   await new Promise(r => setTimeout(r, 800));
+                }
+                location.reload();
             }
-            // 等待完成後再重整
-            location.reload();
         };
 
         function onWindowResize() { 
@@ -657,5 +726,3 @@
     </script>
 </body>
 </html>
-
-
