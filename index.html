@@ -701,17 +701,20 @@
             const btn = document.getElementById('restart-btn');
             if (btn) btn.innerText = "儲存分數中...";
             
-            // 使用 try-catch-finally 確保無論儲存成功失敗，一定會重整頁面
+            // 建立一個超時 Promise，2秒後自動當作完成，避免卡死
+            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
+            
             try {
                 if (!window.hasSubmitted) {
-                    await window.submitScore();
+                    // 使用 Promise.race，看誰先完成 (提交分數 vs 2秒倒數)
+                    await Promise.race([window.submitScore(), timeoutPromise]);
                 }
             } catch (e) {
                 console.error("Save failed but forcing reload", e);
             } finally {
-                // 等待一小段時間讓使用者看到（如果是離線模式）
+                // 再次確保
                 if (isOfflineMode) {
-                   await new Promise(r => setTimeout(r, 800));
+                   await new Promise(r => setTimeout(r, 500));
                 }
                 location.reload();
             }
