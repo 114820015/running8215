@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D 聖誕節大冒險 - 修復版</title>
+    <title>可互動的3D聖誕節遊戲</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Firebase SDKs -->
@@ -57,7 +57,7 @@
         window.submitScore = async function(customName = null) {
             const nameInput = document.getElementById('player-name');
             let name = (customName || (nameInput ? nameInput.value : "")).trim();
-            if (!name) name = "極速賽車手";
+            if (!name) name = "極速麋鹿";
             const score = window.currentFinalScore;
             
             if (!window.currentUser || window.hasSubmitted) return;
@@ -126,17 +126,17 @@
     <div id="start-screen">
         <h1 class="text-5xl font-black mb-4 text-red-500 text-center uppercase tracking-tighter">Merry Christmas</h1>
         <div class="max-w-md w-full text-center bg-white/10 p-6 rounded-3xl backdrop-blur-md">
-            <h2 class="text-xl font-bold mb-4">聖誕賽車極速挑戰</h2>
+            <h2 class="text-xl font-bold mb-4">聖誕麋鹿極速挑戰</h2>
             <ul class="text-left space-y-2 mb-6 text-base text-gray-100 border-b border-white/10 pb-4">
-                <li>🎮 **操作**：使用方向鍵或按鈕左右移動</li>
-                <li>🎁 **禮物**：一般 10 分，黃金 50 分</li>
-                <li>❤️ **生命**：共有 10 點血量，吃愛心可恢復</li>
+                <li>🦌 <strong>操作</strong>：使用方向鍵或按鈕左右移動</li>
+                <li>🎁 <strong>禮物</strong>：普通禮物 10 分，黃金禮物 50 分</li>
+                <li>❤️ <strong>生命</strong>：共有 10 點血量，吃愛心可恢復</li>
             </ul>
             <div class="mb-4">
-                <h3 class="text-sm font-bold text-yellow-500 uppercase mb-2">🏆 全球排行榜 (Top 5)</h3>
+                <h3 class="text-sm font-bold text-yellow-500 uppercase mb-2">🏆 排行榜 (Top 5)</h3>
                 <div id="leaderboard-list" class="text-sm">載入中...</div>
             </div>
-            <button class="btn w-full" onclick="startCountdown()">啟動引擎</button>
+            <button class="btn w-full" onclick="startCountdown()">啟動雪橇</button>
         </div>
     </div>
 
@@ -177,7 +177,7 @@
         window.hasSubmitted = false;
 
         const TRACK_WIDTH = 28; 
-        const GRAVITY = 0.035; 
+        const GRAVITY = 0.03; 
         
         const skyColors = [
             new THREE.Color(0x87ceeb), 
@@ -228,84 +228,111 @@
             animate();
         }
 
+        // --- 這裡就是關鍵修改：將賽車改成麋鹿 ---
         function createPlayerCar() {
             player = new THREE.Group();
-            carGroup = new THREE.Group(); 
-            
-            const bodyMat = new THREE.MeshPhongMaterial({ color: 0xe63946, shininess: 120 });
-            const darkMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 80 });
-            const glassMat = new THREE.MeshPhongMaterial({ color: 0x000000, transparent: true, opacity: 0.8 });
-            const neonMat = new THREE.MeshBasicMaterial({ color: 0x00ffff }); 
+            carGroup = new THREE.Group();
 
-            const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.3, 6.0), darkMat);
-            chassis.position.y = 0.4;
-            carGroup.add(chassis);
+            // 定義麋鹿的顏色材質
+            const furColor = 0x8B4513; // 棕色毛皮
+            const noseColor = 0xFF0000; // 紅鼻子 Rudolph
+            const antlerColor = 0xD2B48C; // 鹿角顏色 (Tan)
+            const hoofColor = 0x111111; // 蹄子顏色
 
-            const splitter = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.15, 0.8), darkMat);
-            splitter.position.set(0, 0.35, -3.1);
-            carGroup.add(splitter);
+            const furMat = new THREE.MeshPhongMaterial({ color: furColor, flatShading: true });
+            const noseMat = new THREE.MeshPhongMaterial({ color: noseColor, shininess: 100 });
+            const antlerMat = new THREE.MeshPhongMaterial({ color: antlerColor });
+            const hoofMat = new THREE.MeshPhongMaterial({ color: hoofColor });
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
-            const skirtL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 3.8), darkMat);
-            skirtL.position.set(-1.4, 0.35, 0);
-            const skirtR = skirtL.clone();
-            skirtR.position.set(1.4, 0.35, 0);
-            carGroup.add(skirtL, skirtR);
-
-            const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, 4.4), bodyMat);
-            body.position.set(0, 0.85, 0.1);
+            // 1. 身體 (Body)
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.4, 2.8), furMat);
+            body.position.y = 1.4; // 架高一點
             carGroup.add(body);
 
-            const noseGeo = new THREE.BoxGeometry(2.2, 0.5, 2.0);
-            const nose = new THREE.Mesh(noseGeo, bodyMat);
-            nose.position.set(0, 0.7, -2.4);
-            nose.rotation.x = 0.1;
-            carGroup.add(nose);
-            
-            const lightCover = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 0.3), darkMat);
-            lightCover.position.set(0, 0.85, -3.0);
-            carGroup.add(lightCover);
-
-            const cockpitGeo = new THREE.SphereGeometry(1.0, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-            const cockpit = new THREE.Mesh(cockpitGeo, glassMat);
-            cockpit.position.set(0, 1.1, -0.3);
-            cockpit.scale.set(1.1, 0.9, 1.8);
-            carGroup.add(cockpit);
-
-            const wingSupportL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.2), darkMat);
-            const wingSupportR = wingSupportL.clone();
-            wingSupportL.position.set(-1.1, 1.25, 2.5);
-            wingSupportR.position.set(1.1, 1.25, 2.5);
-            const wingPlate = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.12, 1.2), bodyMat);
-            wingPlate.position.set(0, 1.65, 2.5);
-            carGroup.add(wingSupportL, wingSupportR, wingPlate);
-
-            const wheelGeo = new THREE.CylinderGeometry(0.75, 0.75, 0.7, 32);
-            const wheelMat = new THREE.MeshPhongMaterial({ color: 0x000000 });
-            const wheelPos = [
-                {x: -1.6, y: 0.75, z: 1.8}, {x: 1.6, y: 0.75, z: 1.8},
-                {x: -1.6, y: 0.75, z: -1.8}, {x: 1.6, y: 0.75, z: -1.8}
+            // 2. 四條腿 (Legs)
+            const legGeo = new THREE.BoxGeometry(0.4, 1.2, 0.4);
+            const positions = [
+                {x:-0.5, z:0.9}, {x:0.5, z:0.9},   // 後腿
+                {x:-0.5, z:-0.9}, {x:0.5, z:-0.9}  // 前腿
             ];
-            wheelPos.forEach(pos => {
-                const w = new THREE.Mesh(wheelGeo, wheelMat);
-                w.rotation.z = Math.PI / 2;
-                w.position.set(pos.x, pos.y, pos.z);
-                const rim = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.04, 8, 32), neonMat);
-                rim.rotation.y = Math.PI / 2;
-                w.add(rim);
-                carGroup.add(w);
-                carWheels.push(w);
+            positions.forEach(p => {
+                const leg = new THREE.Mesh(legGeo, furMat);
+                leg.position.set(p.x, 0.6, p.z);
+                carGroup.add(leg);
+                
+                const hoof = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.3, 0.44), hoofMat);
+                hoof.position.set(p.x, 0.15, p.z);
+                carGroup.add(hoof);
             });
 
-            playerHead = new THREE.Group();
-            const face = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), new THREE.MeshPhongMaterial({ color: 0xffdbac }));
-            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.8, 12), new THREE.MeshPhongMaterial({ color: 0xff0000 }));
-            hat.position.y = 0.45;
-            playerHead.add(face, hat);
-            playerHead.position.set(0, 1.25, -0.3);
-            carGroup.add(playerHead);
+            // 3. 尾巴 (Tail)
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), furMat);
+            tail.position.set(0, 1.8, 1.5);
+            carGroup.add(tail);
 
+            // 4. 脖子 (Neck)
+            const neck = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.8), furMat);
+            neck.position.set(0, 2.2, -1.1);
+            neck.rotation.x = -0.3;
+            carGroup.add(neck);
+
+            // 5. 頭部群組 (Head Group)
+            const headGroup = new THREE.Group();
+            headGroup.position.set(0, 2.9, -1.6);
+            
+            // 頭型
+            const headMesh = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.4), furMat);
+            headGroup.add(headMesh);
+
+            // 紅鼻子
+            const nose = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), noseMat);
+            nose.position.set(0, 0, -0.7);
+            headGroup.add(nose);
+
+            // 眼睛
+            const eyeGeo = new THREE.SphereGeometry(0.12, 8, 8);
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.3, 0.1, -0.65);
+            headGroup.add(leftEye);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.3, 0.1, -0.65);
+            headGroup.add(rightEye);
+
+            // 鹿角 (Antlers)
+            const antlerStemGeo = new THREE.BoxGeometry(0.15, 0.8, 0.15);
+            const antlerBranchGeo = new THREE.BoxGeometry(0.6, 0.15, 0.15);
+            
+            // 左鹿角
+            const leftAntler = new THREE.Group();
+            leftAntler.position.set(-0.3, 0.5, -0.2);
+            leftAntler.rotation.z = 0.5;
+            leftAntler.add(new THREE.Mesh(antlerStemGeo, antlerMat));
+            const laBranch = new THREE.Mesh(antlerBranchGeo, antlerMat);
+            laBranch.position.y = 0.3;
+            leftAntler.add(laBranch);
+            headGroup.add(leftAntler);
+
+            // 右鹿角
+            const rightAntler = new THREE.Group();
+            rightAntler.position.set(0.3, 0.5, -0.2);
+            rightAntler.rotation.z = -0.5;
+            rightAntler.add(new THREE.Mesh(antlerStemGeo, antlerMat));
+            const raBranch = new THREE.Mesh(antlerBranchGeo, antlerMat);
+            raBranch.position.y = 0.3;
+            rightAntler.add(raBranch);
+            headGroup.add(rightAntler);
+
+            // 已移除聖誕帽程式碼
+            
+            carGroup.add(headGroup);
+
+            // 將麋鹿群組加入玩家容器
             player.add(carGroup);
             scene.add(player);
+            
+            // 確保 carWheels 陣列為空，這樣原有的輪胎轉動動畫程式碼就不會報錯
+            carWheels = []; 
         }
 
         function checkOverlap(x, z, minDistance) {
