@@ -81,23 +81,20 @@
             }
         }
 
-        window.submitScore = async function(customName = null) {
+        window.submitScore = async function() {
             const nameInput = document.getElementById('player-name');
-            let name = (customName || (nameInput ? nameInput.value : "")).trim();
+            let name = (nameInput ? nameInput.value : "").trim();
             if (!name) name = "極速麋鹿";
             const score = window.currentFinalScore;
             
             if (window.hasSubmitted) return;
             window.hasSubmitted = true; 
-            
-            const area = document.getElementById('score-submit-area');
 
             if (isOfflineMode) {
                 try {
                     const localData = JSON.parse(localStorage.getItem('christmas_scores') || '[]');
                     localData.push({ name: name, score: score, timestamp: Date.now() });
                     localStorage.setItem('christmas_scores', JSON.stringify(localData));
-                    if (area) area.innerHTML = `<p class="text-green-400 font-bold text-lg animate-bounce">✅ 本機分數已儲存</p>`;
                     fetchLeaderboard();
                     await new Promise(r => setTimeout(r, 500));
                 } catch (e) { console.error(e); }
@@ -111,7 +108,6 @@
                         timestamp: Date.now(),
                         uid: window.currentUser.uid
                     });
-                    if (area) area.innerHTML = `<p class="text-green-400 font-bold text-lg animate-bounce">✅ 線上分數已記錄</p>`;
                 } catch (e) {
                     console.error("Submit failed", e);
                     window.hasSubmitted = false;
@@ -120,26 +116,22 @@
         };
 
         function renderLeaderboardUI() {
-            const container = document.getElementById('leaderboard-list');
-            if (!container) return;
-            
-            const title = isOfflineMode ? "🏆 本機排行榜 (Offline)" : "🏆 全球排行榜 (Online)";
-            const header = document.querySelector('#start-screen h3');
-            if(header) header.innerText = title;
-
-            if (!window.leaderboardData || window.leaderboardData.length === 0) {
-                container.innerHTML = '<p class="text-gray-400 italic">暫無排行榜資料</p>';
-                return;
-            }
-            container.innerHTML = window.leaderboardData.map((entry, index) => `
-                <div class="flex justify-between items-center bg-white/5 p-2 rounded mb-1">
-                    <span class="flex items-center gap-2">
-                        <span class="w-6 h-6 flex items-center justify-center bg-red-600 rounded-full text-xs">${index + 1}</span>
-                        <span class="truncate max-w-[120px] font-medium">${entry.name}</span>
-                    </span>
-                    <span class="text-yellow-400 font-bold">${entry.score}</span>
-                </div>
-            `).join('');
+            const containers = document.querySelectorAll('.leaderboard-list');
+            containers.forEach(container => {
+                if (!window.leaderboardData || window.leaderboardData.length === 0) {
+                    container.innerHTML = '<p class="text-gray-400 italic">暫無排行榜資料</p>';
+                    return;
+                }
+                container.innerHTML = window.leaderboardData.map((entry, index) => `
+                    <div class="flex justify-between items-center bg-white/5 p-2 rounded mb-1">
+                        <span class="flex items-center gap-2">
+                            <span class="w-6 h-6 flex items-center justify-center bg-red-600 rounded-full text-xs">${index + 1}</span>
+                            <span class="truncate max-w-[120px] font-medium">${entry.name}</span>
+                        </span>
+                        <span class="text-yellow-400 font-bold">${entry.score}</span>
+                    </div>
+                `).join('');
+            });
         }
     </script>
     <style>
@@ -155,8 +147,8 @@
         .btn { background: #e63946; color: white; padding: 12px 30px; border-radius: 50px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: all 0.2s; border: none; }
         .btn:hover { background: #f1faee; color: #e63946; transform: scale(1.05); }
         .controls { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: space-between; padding: 0 40px; pointer-events: none; z-index: 50; }
-        .control-btn { width: 150px; height: 150px; background: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 4rem; color: white; pointer-events: auto; user-select: none; }
-        .control-btn.active { background: rgba(230, 57, 70, 0.8); transform: scale(0.9); }
+        .control-btn { width: 150px; height: 150px; background: rgba(255, 255, 255, 0.1); border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 4rem; color: white; pointer-events: auto; user-select: none; box-shadow: none; }
+        .control-btn.active { background: rgba(230, 57, 70, 0.6); transform: scale(0.9); }
         input { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 12px 15px; border-radius: 12px; outline: none; transition: all 0.3s; width: 100%; text-align: center; }
         input:focus { border-color: #e63946; background: rgba(255,255,255,0.2); }
     </style>
@@ -179,7 +171,7 @@
             </ul>
             <div class="mb-4">
                 <h3 class="text-sm font-bold text-yellow-500 uppercase mb-2">🏆 全球排行榜 (Top 5)</h3>
-                <div id="leaderboard-list" class="text-sm">載入中...</div>
+                <div class="leaderboard-list text-sm">載入中...</div>
             </div>
             <button class="btn w-full" onclick="startCountdown()">啟動雪橇</button>
         </div>
@@ -196,15 +188,14 @@
         <div class="max-w-sm w-full bg-white/10 p-8 rounded-3xl backdrop-blur-xl text-center border border-white/20">
             <h2 class="text-4xl font-extrabold text-red-500 mb-2">任務結束！</h2>
             <div class="text-6xl font-black text-white mb-6" id="final-score-display">0</div>
-            <div id="score-submit-area" class="mb-8">
-                <p class="text-gray-300 text-sm mb-3">輸入暱稱登記排行 (或直接重新挑戰)</p>
-                <div class="flex flex-col gap-3">
-                    <input type="text" id="player-name" placeholder="極速麋鹿" maxlength="12" 
-                           class="w-full bg-white/10 border border-white/30 text-white p-3 rounded-xl outline-none text-center focus:bg-white/20 focus:border-red-500 transition-all"
-                           onkeydown="if(event.key==='Enter') window.submitScore()">
-                </div>
+            
+            <div class="mb-6">
+                <input type="text" id="player-name" placeholder="輸入您的姓名" maxlength="12" class="mb-4">
+                <h3 class="text-xs font-bold text-yellow-500 uppercase mb-2">🏆 最新排行榜</h3>
+                <div class="leaderboard-list text-xs mb-4">載入中...</div>
             </div>
-            <button id="restart-btn" onclick="handleRestart()" class="btn w-full">重新挑戰</button>
+
+            <button id="restart-btn" onclick="handleRestart()" class="btn w-full">提交並重新挑戰</button>
         </div>
     </div>
 
@@ -611,7 +602,7 @@
             document.getElementById('game-over').style.display = 'flex'; 
         }
 
-        // --- 核心修改：軟重置 (不刷新網頁) ---
+        // --- 軟重置邏輯 ---
         function resetGame() {
             score = 0;
             health = 100;
@@ -636,7 +627,7 @@
 
             const btn = document.getElementById('restart-btn');
             if (btn) {
-                btn.innerText = "重新挑戰";
+                btn.innerText = "提交並重新挑戰";
                 btn.disabled = false;
             }
             document.getElementById('game-over').style.display = 'none';
@@ -657,7 +648,6 @@
                 }
             } catch (e) { console.error(e); }
             
-            // 直接呼叫軟重置，不刷新頁面
             resetGame();
             startCountdown();
         };
@@ -671,4 +661,3 @@
     </script>
 </body>
 </html>
-
